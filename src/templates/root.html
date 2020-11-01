@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>lovedaresnot</title>
+  </head>
+  <body>
+    <h1>lovedaresnot</h1>
+    {% if mode == 'setup' and role == 'manager' %}
+    <div class="form_area">
+      <h2>setup consensor group</h2>
+      <form action="/" method="post">
+        <p><input name="consensors" class="form_text" type="text" placeholder="consensor ips" /></p>
+        <p><input type="submit" /></p>
+      </form>
+    </div>
+    {% elif mode == 'consensing' %}
+    <h2>consensors:
+      {% for c in consensors %}
+      {% if loop.index > 1 %}
+      , {{ c }}
+      {% else %}
+      {{ c }}
+      {% endif %}
+      {% endfor %}
+    </h2>
+    <div class="form_area">
+      <h2>new snot dare</h2>
+      <form action="/new_snot_dare" method="post">
+        <p><input name="snot_dare" class="form_text" type="text" placeholder="snot dare" /></p>
+        <p><input type="submit" value="submit" /></p>
+      </form>
+    </div>
+    List of:<br/>
+    - snot dare<br/>
+    - Consensor IPs<br/>
+    - Status<br/>
+    - Your Vote
+    {% endif %}
+  </body>
+</html>
