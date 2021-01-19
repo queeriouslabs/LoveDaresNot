@@ -27,7 +27,9 @@ the protocol, I believe it successfully achieves the _spirit_ of the tool that
 he describes. This spirit, as I see it, is captured by a number of essential
 properties.
 
-Much thanks to Avi Zajac, Slug Monk, and Isis Lovecruft for discussing this problem with me, and for giving me feedback on the design of the protocol.
+Much thanks to Isis Lovecruft, Slug Monk, and Avi Zajac for
+discussing this problem with me, and for giving me feedback on the design of
+the protocol.
 
 ## Defining the Problem
 
@@ -167,6 +169,16 @@ numbers summed to 866, `c` announces 366, and `d` announces -286. Each
 participant can now sum together those announced numbers to produce a final sum:
 -383 + 866 + 366 + -286 = 563. If this final sum is 0, then everyone responded
 `consense`, but if it's greater than 0, at least one person blocked.
+
+To do this in a way that is robust to attacks, each participant first
+broadcasts a commitment, in the form of a salted hash of their sum. Once all
+participants have broadcast a salted hash, they then broadcast the unhashed
+salted sum. Without this commitment step, the last participant to broadcast
+would know the overall result of the round before they transmit their sum, and
+thus can completely control the outcome of the consensus round by announcing
+whatever number they wish for their desired outcome. By sending commitments
+first, every participant must faithfully report their sum or be found out to be
+lying and trying to manipulate the outcome.
 
 This final summing step explains why earlier the numbers must sum to a positive
 integer: if negative integers were allowed, you could accidentally have two
