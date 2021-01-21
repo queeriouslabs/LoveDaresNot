@@ -72,12 +72,22 @@ class SnotDareManager(object):
         self.send_state = None
 
     def setup_consensors(self, consensors):
+        print('Setting up consensors: ' + repr(consensors))
         if not all([is_ip_address(c) for c in consensors]):
             return False
-        else:
-            self.consensors = [c for c in consensors if c !=
-                               self.ip_address] + [self.ip_address]
+        elif self.mode == 'setup':
+            self.consensors = list(set(consensors + [self.ip_address]))
             self.start()
+            print('All consensors: ' + repr(self.consensors))
+
+            if self.role == 'manager':
+                for c in self.consensors:
+                    if c != self.ip_address:
+                        print('Sending consensor info to ' + c)
+                        print('Consensors: ' + repr(self.consensors))
+                        url = 'http://' + c
+                        requests.post(
+                            url, data={'consensors': self.consensors})
 
             return True
 
@@ -93,8 +103,12 @@ class SnotDareManager(object):
         thread.start()
 
     def main_loop(self):
-        # handle announcements
+        # handle commitments and announcements
         for snot_dare, round in self.unanimous_rounds.items():
+            commitment = round.announcement_commitment()
+            if not round.has_been_committed and commitment is not None:
+                self.commit_round(round)
+
             announcement = round.announcement()
             if not round.has_been_announced and announcement is not None:
                 self.announce_round(round)
@@ -135,8 +149,10 @@ class SnotDareManager(object):
 
     def handle_message(self, msg):
         print()
-        print('handling message:')
-        print(msg)
+        print()
+        print('---------------- handling message ----------------')
+        print()
+        print('Message: ' + repr(msg))
         if msg['type'] == 'single_round_unanimous':
             snot_dare = msg['snot_dare']
 
@@ -145,15 +161,22 @@ class SnotDareManager(object):
                     snot_dare, self.ip_address, msg['consensor_ips'])
             round = self.unanimous_rounds[snot_dare]
 
-            if 'sender_ip' in msg and 'response' in msg:
-                round.add_response(msg['sender_ip'], msg['response'])
+            if 'sender_ip' in msg:
+                if 'response' in msg:
+                    round.add_response(msg['sender_ip'], msg['response'])
+                elif 'commitment' in msg:
+                    self.add_commitment(msg)
+                elif 'announced_number' in msg:
+                    self.add_announcement(msg)
 
             if is_need_to_propose_snot_dare(snot_dare):
-                self.watched_unanimous_rounds.append(snot_dare)
+                if snot_dare not in self.watched_unanimous_rounds:
+                    self.watched_unanimous_rounds.append(snot_dare)
+
                 print()
                 print('Need To Propose Snot Dare: ' + snot_dare)
                 if round.own_response is None:
-                    print('Unanswered')
+                    print('This snot dare has not yet been answered.')
                     self.do_need_to_propose_snot_dare(snot_dare)
 
     def do_need_to_propose_snot_dare(self, snot_dare):
@@ -167,29 +190,69 @@ class SnotDareManager(object):
         self.send_round_response(snot_dare, resp)
 
     def send_round_response(self, snot_dare, response):
+        print('Sending round response')
+        print('  Snot Dare: ' + snot_dare)
+        print('  Response: ' + repr(response))
+
         for ip, number in response['others_numbers'].items():
-            message = {
+            message = json.dumps({
                 'type': 'single_round_unanimous',
                 'consensor_ips': [self.ip_address] + self.unanimous_rounds[snot_dare].other_consensor_ips,
                 'sender_ip': self.ip_address,
                 'snot_dare': snot_dare,
                 'response': number
-            }
+            })
             requests.post('http://' + ip + '/api/messages',
-                          json=json.dumps(message))
+                          json=message)
+
+    def commit_round(self, round):
+        round.has_been_committed = True
+        print('Committing round: ' + round.snot_dare)
+        print('Commitment: ' + round.announcement_commitment())
+        message = json.dumps({
+            'type': 'single_round_unanimous',
+            'consensor_ips': [self.ip_address] + round.other_consensor_ips,
+            'sender_ip': self.ip_address,
+            'snot_dare': round.snot_dare,
+            'commitment': round.announcement_commitment()
+        })
+        for ip in round.other_consensor_ips:
+
+            requests.post('http://' + ip + '/api/messages',
+                          json=message)
 
     def announce_round(self, round):
         round.has_been_announced = True
+        print('Announcing round: ' + round.snot_dare)
+        message = json.dumps({
+            'type': 'single_round_unanimous',
+            'consensor_ips': [self.ip_address] + round.other_consensor_ips,
+            'sender_ip': self.ip_address,
+            'snot_dare': round.snot_dare,
+            'announced_number': round.announcement()
+        })
         for ip in round.other_consensor_ips:
-            announcement = {
-                'snot_dare': round.snot_dare,
-                'sender_ip': self.ip_address,
-                'announced_number': round.announcement()
-            }
-            requests.post('http://' + ip + '/api/announcements',
-                          json=json.dumps(announcement))
+
+            requests.post('http://' + ip + '/api/messages',
+                          json=message)
+
+    def add_commitment(self, commitment):
+        print()
+        print()
+        print('---------------- received commitment ----------------')
+        print()
+        print('Commitment: ' + repr(commitment))
+        if commitment['snot_dare'] in self.unanimous_rounds:
+            round = self.unanimous_rounds[commitment['snot_dare']]
+            round.add_announcement_commitment(
+                commitment['sender_ip'], commitment['commitment'])
 
     def add_announcement(self, announcement):
+        print()
+        print()
+        print('---------------- received announcement ----------------')
+        print()
+        print('Announcement: ' + repr(announcement))
         if announcement['snot_dare'] in self.unanimous_rounds:
             round = self.unanimous_rounds[announcement['snot_dare']]
             old_result = round.result()
@@ -213,20 +276,12 @@ class SnotDareManager(object):
 
     def begin_propose_snot_dare_process(self, call_round_id):
         print('!!!!! BEGINNING SNOT DARE PROPOSAL PROCESS')
-        new_snot_dare_id = INTERNAL_is_this_bit_one_prefix + call_round_id + '/0'
-        print(new_snot_dare_id)
+        exit()
 
         if len(self.send_queue) > 0:
             snot_dare = self.send_queue[0]
 
-            self.send_state = {
-                'snot_dare': snot_dare,
-                'remaining_bits': message_to_bit_array(snot_dare),
-                'interrupted': False
-            }
-
-        else:
-            pass
+            print('SENDING SNOT DARE: ' + snot_dare)
 
     def send_new_snot_dare(self, snot_dare):
         self.send_queue += [snot_dare]

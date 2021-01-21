@@ -9,8 +9,6 @@ ip_address = '127.0.0.1:' + os.environ['FLASK_RUN_PORT']
 role = os.environ['LDN_ROLE']
 
 manager = sdm.SnotDareManager(ip_address, role)
-if manager.role != 'manager':
-    manager.start()
 
 
 @app.route('/', methods=['GET'])
@@ -20,7 +18,8 @@ def root_get():
 
 @app.route('/', methods=['POST'])
 def root_post():
-    consensors = [c.strip() for c in request.form['consensors'].split(',')]
+    consensors = request.form.getlist('consensors')
+    print('CONSENSORS: ' + repr(consensors))
 
     if manager.setup_consensors(consensors):
         return redirect('/')
@@ -39,12 +38,5 @@ def new_snot_dare_post():
 @app.route('/api/messages', methods=['POST'])
 def api_messages_post():
     manager.incoming_messages.append(json.loads(request.json))
-
-    return 'ok', 200
-
-
-@app.route('/api/announcements', methods=['POST'])
-def api_announcements_post():
-    manager.add_announcement(json.loads(request.json))
 
     return 'ok', 200

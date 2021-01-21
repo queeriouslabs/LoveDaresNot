@@ -1,4 +1,5 @@
 import secrets
+import hashlib
 
 
 RAND_POSITIVE_WIDTH = 1000000
@@ -16,8 +17,11 @@ class UnanimousSnotDareRound(object):
         self.other_consensor_ips = [
             ip for ip in all_consensor_ips if ip != own_ip]
         self.responses = {}
+        self.announcement_commitments = {}
         self.own_response = None
+        self.has_been_committed = False
         self.has_been_announced = False
+        self.cached_announcement_commitment = None
         self.cached_announcement = None
         self.announcements = {}
 
@@ -60,9 +64,9 @@ class UnanimousSnotDareRound(object):
         if consensor_ip not in self.responses:
             self.responses[consensor_ip] = number
 
-    def announcement(self):
-        if self.cached_announcement is not None:
-            return self.cached_announcement
+    def announcement_commitment(self):
+        if self.cached_announcement_commitment is not None:
+            return self.cached_announcement_commitment
 
         if self.own_response is None:
             return None
@@ -76,20 +80,50 @@ class UnanimousSnotDareRound(object):
         if not all_found:
             return None
         else:
-            self.cached_announcement = self.own_response['own_number'] + \
+            own_round_sum = self.own_response['own_number'] + \
                 sum(self.responses.values())
+            salt = secrets.token_hex(32)
+            self.cached_announcement = salt + ':' + str(own_round_sum)
+            self.cached_announcement_commitment = hashlib.sha256(
+                self.cached_announcement.encode('ascii')).hexdigest()
 
+            return self.cached_announcement_commitment
+
+    def add_announcement_commitment(self, sender_ip, commitment):
+        self.announcement_commitments[sender_ip] = commitment
+
+    def announcement(self):
+        if self.own_response is None:
+            return None
+
+        all_found = True
+        for ip in self.other_consensor_ips:
+            if ip not in self.announcement_commitments:
+                all_found = False
+                break
+
+        if not all_found:
+            return None
+        else:
             return self.cached_announcement
 
     def add_announcement(self, sender_ip, announced_number):
-        self.announcements[sender_ip] = announced_number
+        print('ADDING ANNOUNCEMENT: ' + announced_number)
+        # check that announcement is valid
+        is_valid = hashlib.sha256(announced_number.encode(
+            'ascii')).hexdigest() == self.announcement_commitments[sender_ip]
+        print('CHECKING sha256(' + announced_number + ') = ' +
+              self.announcement_commitments[sender_ip] + ': ' + repr(is_valid))
+
+        if is_valid:
+            self.announcements[sender_ip] = int(announced_number.split(':')[1])
 
     def result(self):
         if self.cached_announcement is None:
             return 'unknown'
 
         all_found = True
-        total = self.cached_announcement
+        total = int(self.cached_announcement.split(':')[1])
         for ip in self.other_consensor_ips:
             if ip not in self.announcements:
                 all_found = False
@@ -103,3 +137,12 @@ class UnanimousSnotDareRound(object):
                 return 'yes'
         else:
             return 'unknown'
+
+
+class SnotDareMultiround(object):
+
+    def __init__(self, snot_dare, own_ip, all_consensor_ips):
+        self.snot_dare = snot_dare
+        self.own_ip = own_ip
+        self.other_consensor_ips = [
+            ip for ip in all_consensor_ips if ip != own_ip]

@@ -2,13 +2,16 @@
 <html>
   <head>
     <meta charset="UTF-8">
-
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <title>lovedaresnot</title>
+    {% if role != 'manager' and mode == 'setup' %}
+    <meta http-equiv="refresh" content="5" />
+    {% endif %}
   </head>
   <body>
     <h1>lovedaresnot</h1>
-    {% if mode == 'setup' and role == 'manager' %}
+    {% if mode == 'setup' %}
+      {% if role == 'manager' %}
     <div class="form_area">
       <h2>setup consensor group</h2>
       <form action="/" method="post">
@@ -16,16 +19,17 @@
         <p><input type="submit" /></p>
       </form>
     </div>
-    {% elif mode == 'consensing' %}
-    <h2>consensors:
-      {% for c in consensors %}
-      {% if loop.index > 1 %}
-      , {{ c }}
       {% else %}
-      {{ c }}
+    <h2>Waiting for manager...</h2>
       {% endif %}
-      {% endfor %}
-    </h2>
+    {% elif mode == 'consensing' %}
+    <div>
+      <h2>consensors:</h2>
+      <p>{% for c in consensors %}
+      {% if not loop.first %}, {% endif %}
+      {{c}}
+      {% endfor %}</p>
+    </div>
     <div class="form_area">
       <h2>new snot dare</h2>
       <form action="/new_snot_dare" method="post">
