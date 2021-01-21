@@ -1,5 +1,6 @@
 import secrets
 import hashlib
+import re
 
 
 RAND_POSITIVE_WIDTH = 1000000
@@ -110,13 +111,17 @@ class UnanimousSnotDareRound(object):
     def add_announcement(self, sender_ip, announced_number):
         print('ADDING ANNOUNCEMENT: ' + announced_number)
         # check that announcement is valid
-        is_valid = hashlib.sha256(announced_number.encode(
-            'ascii')).hexdigest() == self.announcement_commitments[sender_ip]
-        print('CHECKING sha256(' + announced_number + ') = ' +
-              self.announcement_commitments[sender_ip] + ': ' + repr(is_valid))
 
-        if is_valid:
-            self.announcements[sender_ip] = int(announced_number.split(':')[1])
+        if re.match('^[0-9a-fA-F]+:\d+$', announced_number):
+
+            is_valid = hashlib.sha256(announced_number.encode(
+                'ascii')).hexdigest() == self.announcement_commitments[sender_ip]
+            print('CHECKING sha256(' + announced_number + ') = ' +
+                  self.announcement_commitments[sender_ip] + ': ' + repr(is_valid))
+
+            if is_valid:
+                self.announcements[sender_ip] = int(
+                    announced_number.split(':')[1])
 
     def result(self):
         if self.cached_announcement is None:
